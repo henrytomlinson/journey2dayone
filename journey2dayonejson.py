@@ -1,11 +1,13 @@
-import json
-import uuid
-import os, glob
-from datetime import datetime
-from pytz import timezone
-from markdownify import markdownify
-from zipfile import ZipFile
 import shutil
+from zipfile import ZipFile
+from markdownify import markdownify
+from pytz import timezone
+from datetime import datetime
+import glob
+import uuid
+import json
+import os
+print(f"Current working directory: {os.getcwd()}")
 
 
 def getuuid():
@@ -15,8 +17,23 @@ def getuuid():
 
 def convert_unixtime(unixtime, timezone_str):
     date = datetime.fromtimestamp(unixtime / 1000)
-    date = timezone(timezone_str).localize(date)
+    try:
+        # Attempt to localize the date with the provided timezone string
+        date = timezone(timezone_str).localize(date)
+    except Exception as e:
+        print(f"Error with timezone '{timezone_str}': {e}")
+        # Fallback to a default timezone if there's an error (e.g., timezone string is empty or not recognized)
+        default_timezone_str = 'UTC'
+        print(f"Using default timezone: {default_timezone_str}")
+        date = timezone(default_timezone_str).localize(date)
+
     return date.astimezone(timezone("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# def convert_unixtime(unixtime, timezone_str):
+    # date = datetime.fromtimestamp(unixtime / 1000)
+    # date = timezone(timezone_str).localize(date)
+    # return date.astimezone(timezone("UTC")).strftime#("%Y-%m-%dT%H:%M:%SZ")
 
 
 def convert_photo(name, i):
@@ -77,6 +94,8 @@ if os.path.exists("./dayone"):
 os.makedirs("dayone/photos")
 
 entries = []
+json_files = glob.glob("./journey/*.json")
+print(f"Found {len(json_files)} json files in './journey' directory.")
 for f in glob.glob("./journey/*.json"):
     with open(f, "r") as fh:
         journey = json.load(fh)
@@ -87,17 +106,22 @@ for f in glob.glob("./journey/*.json"):
         for (p, j) in zip(dayone["photos"], journey["photos"]):
             source = "./journey/" + str(j)
             target = "./dayone/photos/" + str(j)
+            print(f"Copying photo from {source} to {target}")
             shutil.copyfile(source, target)
 
-            dayone["text"] = dayone["text"] + "\n![](dayone-moment://{})".format(p["identifier"])
+            dayone["text"] = dayone["text"] + \
+                "\n![](dayone-moment://{})".format(p["identifier"])
     entries.append(dayone)
 
+print(f"Total entries processed: {len(entries)}")
 dayone_json = {"metadata": {"version": "1.0"}, "entries": entries}
 
 with open("./dayone/Journey.json", "w") as fh:
-    fh.write(json.dumps(dayone_json, indent=4, separators=(",", ": ")).replace("/", r"\/"))
+    fh.write(json.dumps(dayone_json, indent=4,
+             separators=(",", ": ")).replace("/", r"\/"))
 
 if os.path.exists("dayone.zip"):
     os.remove("dayone.zip")
 
 shutil.make_archive("dayone", "zip", "./dayone")
+print("dayone.zip created successfully.")
